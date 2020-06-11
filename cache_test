@@ -1,0 +1,60 @@
+package cache
+
+import (
+	"fmt"
+	"testing"
+	"time"
+)
+
+type myStruct struct {
+	XEntry
+	data string
+}
+
+func TestCache(t *testing.T) {
+	a := &myStruct{data: "mama are here"} //a是myStruct的一个指针 且内容是 "mama are here"
+	a.XCache("hama", 1*time.Second, a)
+	b, err := GetXCached("mama")
+	if err != nil || b == nil || b != a {
+		t.Error("Error retriving data from cache", err)
+	}
+	fmt.Println(b, a)
+
+}
+
+func TestCacheExpire(t *testing.T) {
+	a := &myStruct{data: "mama are here"}
+	a.XCache("mama", 1*time.Second, a)
+	b, err := GetXCached("mama")
+	if err != nil || b == nil || b.(*myStruct).data != "mama are here" {
+		t.Error("Error retriving data from cache", err)
+	}
+	time.Sleep(1001 * time.Millisecond)
+	b, err = GetXCached("mama")
+	if err == nil || b != nil {
+		t.Error("Error expiring data")
+	}
+
+}
+
+func TestCacheKeepAlive(t *testing.T) {
+	a := &myStruct{data: "mama are here"}
+	a.XCache("mama", 1*time.Second, a)
+	b, err := GetXCached("mama")
+	if err != nil || b == nil || b.(*myStruct).data != "mama are here" {
+		t.Error("Error retriving data from cache", err)
+
+	}
+	time.Sleep(500 * time.Millisecond)
+	b.KeepAlive()
+	time.Sleep(501 * time.Millisecond)
+	if err != nil {
+		t.Error("Error keeping cached data alive", err)
+
+	}
+	time.Sleep(1000 * time.Millisecond)
+	b, err = GetXCached("mama")
+	if err == nil || b != nil {
+		t.Error("Error expiring data")
+	}
+}

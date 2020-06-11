@@ -1,0 +1,86 @@
+package cache
+
+//具有到期功能并发安全的缓存库
+import (
+	"errors"
+	"sync"
+	"time"
+)
+
+//ExpiringCacheEntry 到期的缓存入口接口
+type ExpiringCacheEntry interface {
+	XCache(key string, expire time.Duration, value ExpiringCacheEntry)
+	Expire()
+	KeepAlive()
+}
+
+//XEntry 进口的结构体
+type XEntry struct {
+	sync.Mutex
+	key       string
+	keepAlive bool
+	expire    time.Duration
+}
+
+var (
+	xcache = make(map[string]ExpiringCacheEntry) //map 可以动态扩容 用来保存缓存的值
+	cache  = make(map[string]interface{})
+)
+
+//XCache 函数 XEntry是结构体 在函数内要对其修改时 要传入指针
+//记录缓存内容 并且开一个新的goroutine去倒计时
+func (xe *XEntry) XCache(key string, expire time.Duration, value ExpiringCacheEntry) {
+	xe.keepAlive = true
+	xe.key = key
+	xe.expire = expire
+	xcache[key] = value //
+	go xe.Expire()      //开启一个goroutine进行倒计时
+
+}
+
+//Expire 进入倒计时，到期后删除
+func (xe *XEntry) Expire() {
+	for xe.keepAlive {
+		xe.Lock()
+		//进入缓存
+		xe.keepAlive = false
+		xe.Unlock()
+		t := time.NewTimer(xe.expire) //创建一个计时器
+		<-t.C                         //计时结束
+		xe.Lock()
+		if !xe.keepAlive {
+			delete(xcache, xe.key)
+		}
+		xe.Unlock()
+	}
+}
+
+//KeepAlive 将文件恢复使用
+func (xe *XEntry) KeepAlive() {
+	xe.Lock()
+	defer xe.Unlock()
+	xe.keepAlive = true
+}
+
+//GetXCached 取出之前缓存的信息
+func GetXCached(key string) (ece ExpiringCacheEntry, err error) {
+	if r, ok := xcache[key]; ok {
+		r.KeepAlive()
+		return r, nil
+	}
+	return nil, errors.New("not found")
+
+}
+
+func Cache(key string, value interface{}) {
+	cache[key] = value
+}
+
+func GetCached(key string) (v interface{}, err error) {
+	if r, ok := cache[key]; ok {
+		return r, nil
+
+	}
+	return nil, errors.New("not found")
+
+}

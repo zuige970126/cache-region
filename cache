@@ -21,7 +21,7 @@ type XEntry struct {
 	keepAlive bool
 	expire    time.Duration
 }
-
+//xcache 是需要过期删除的  cache是不需要删除
 var (
 	xcache = make(map[string]ExpiringCacheEntry) //map 可以动态扩容 用来保存缓存的值
 	cache  = make(map[string]interface{})
@@ -71,6 +71,10 @@ func GetXCached(key string) (ece ExpiringCacheEntry, err error) {
 	return nil, errors.New("not found")
 
 }
+//对所以缓存的内容进行清理
+func (xe *XEntry) Clear() {
+	xcache = make(map[string]ExpiringCacheEntry)
+}
 
 func Cache(key string, value interface{}) {
 	cache[key] = value
@@ -84,3 +88,8 @@ func GetCached(key string) (v interface{}, err error) {
 	return nil, errors.New("not found")
 
 }
+//对cache中的值进行清理
+func Clear() {
+	cache = make(map[string]interface{})
+}
+
